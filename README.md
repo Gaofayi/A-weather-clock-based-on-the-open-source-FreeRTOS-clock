@@ -5,8 +5,9 @@
 [![Platform](https://img.shields.io/badge/Platform-STM32F407-blue)](https://www.st.com)
 
 
-📌 项目简介
+📌 项目简介：
 一款低功耗桌面天气时钟。通过ESP32-C3模块Wi-Fi联网，获取心知天气实时数据，并在OLED上多页面交互显示。项目采用“状态机”管理Wi-Fi连接与数据刷新，利用FreeRTOS多任务实现UI渲染、RTC计时与按键响应的解耦。
+*注意事项：若您想连接自己的WiFi和心知天气API，请将user_config.h文件里WiFi账户密码和API的宏改为自己的
 
 🧰 技术栈
 主控: STM32F407ZGT6 (ARM Cortex-M4)
@@ -78,7 +79,6 @@ graph TD
 [主界面展示](Images/main_screen.jpg)
 [多页面切换]（开发中）
 (GIF动图更酷：用手机录屏软件拍屏幕，转到 https://ezgif.com 转成GIF放进来)*
-
 
 
 
