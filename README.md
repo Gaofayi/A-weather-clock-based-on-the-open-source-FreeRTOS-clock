@@ -32,7 +32,7 @@
 | 显示屏幕 | ST7789 240x320 LCD（SPI2 + DMA） |
 | 实时时钟 | STM32 片内 RTC（外接 32.768KHz 晶振） |
 | 通信协议 | USART（AT 指令）、I2C、SPI |
-| 数据格式 | HTTP GET、手写 JSON 解析（轻量级 strstr/sscanf） |
+| 数据格式 | HTTP GET、JSON 解析（轻量级 strstr/sscanf） |
 | 开发环境 | Keil MDK 5 + STM32CubeMX |
 
 ---
