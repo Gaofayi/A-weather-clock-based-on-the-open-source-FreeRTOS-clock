@@ -46,7 +46,7 @@ graph LR
     A[心知天气 API] -->|HTTP GET| B(ESP32-C3 WiFi 模组)
     B -->|USART2 透传| C{STM32F407 主控}
     C -->|SPI2 + DMA| D[ST7789 LCD 显示]
-    C -->|I2C1| E[AHT20 温湿度传感器]
+    C -->|I2C2| E[AHT20 温湿度传感器]
     C -->|I2C1| F[片内 RTC 时钟]
     G[物理按键] -->|GPIO 轮询| C
     C -->|AT 指令| B
