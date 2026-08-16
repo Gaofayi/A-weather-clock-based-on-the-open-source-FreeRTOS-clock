@@ -26,9 +26,9 @@ typedef struct
 {
     at_ack_t ack;
     const char *string;
-} at_ack_match_t;
+} at_ack_match_t;    //该结构体里是一个枚举+数组
 
-static const at_ack_match_t at_ack_matches[] = 
+static const at_ack_match_t at_ack_matches[] =   	//结构体数组
 {
     {AT_ACK_OK, "OK\r\n"},
     {AT_ACK_ERROR, "ERROR\r\n"},
@@ -133,7 +133,7 @@ bool esp_at_init(void)
     return true;
 }
 
-static void esp_at_usart_write(const char *data)
+static void esp_at_usart_write(const char *data)   //ESPAT串口发数据
 {
     uint32_t len = strlen(data);
     

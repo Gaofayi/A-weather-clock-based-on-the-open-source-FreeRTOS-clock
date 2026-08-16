@@ -46,6 +46,8 @@
 .\objects\main.o: ..\third_lib\freertos\include\list.h
 .\objects\main.o: ..\app\workqueue.h
 .\objects\main.o: ..\app\app.h
+.\objects\main.o: ..\app\weather.h
+.\objects\main.o: C:\STM32\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\main.o: ..\app\ui.h
 .\objects\main.o: ..\app\font\font.h
 .\objects\main.o: ..\app\image\image.h

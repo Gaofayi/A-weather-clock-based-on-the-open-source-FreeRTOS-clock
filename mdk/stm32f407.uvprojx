@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F40_41xxx,USE_STDPERIPH_DRIVER,HSE_VALUE=8000000</Define>
               <Undefine></Undefine>
-              <IncludePath>..\app;..\app\font;..\app\image;..\app\page;..\driver\tim_delay;..\driver\rtc;..\driver\console;..\driver\aht20;..\driver\st7789;..\driver\esp_at;..\firmware\cmsis\core;..\firmware\cmsis\device;..\firmware\driver\inc;..\third_lib\freertos\include;..\third_lib\freertos\portable;..\driver\led;..\mdk</IncludePath>
+              <IncludePath>..\app;..\app\font;..\app\image;..\app\page;..\driver\tim_delay;..\driver\rtc;..\driver\console;..\driver\aht20;..\driver\st7789;..\driver\esp_at;..\firmware\cmsis\core;..\firmware\cmsis\device;..\firmware\driver\inc;..\third_lib\freertos\include;..\third_lib\freertos\portable;..\driver\led;..\mdk;..\app\image</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -540,6 +540,11 @@
               <FileType>1</FileType>
               <FilePath>..\app\image\icon_na.c</FilePath>
             </File>
+            <File>
+              <FileName>wallpaper.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\wallpaper.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -564,6 +569,16 @@
               <FileName>main_page.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\app\page\main_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>img_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\img_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>sysinfo_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\sysinfo_page.c</FilePath>
             </File>
           </Files>
         </Group>

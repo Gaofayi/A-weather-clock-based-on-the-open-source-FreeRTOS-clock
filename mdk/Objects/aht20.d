@@ -46,3 +46,4 @@
 .\objects\aht20.o: ..\third_lib\freertos\include\task.h
 .\objects\aht20.o: ..\third_lib\freertos\include\list.h
 .\objects\aht20.o: ..\driver\tim_delay\tim_delay.h
+.\objects\aht20.o: C:\STM32\ARM\ARMCC\Bin\..\include\stdio.h

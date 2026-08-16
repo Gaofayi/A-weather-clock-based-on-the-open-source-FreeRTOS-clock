@@ -6,4 +6,6 @@
 .\objects\wifi_page.o: ..\app\font\font.h
 .\objects\wifi_page.o: ..\app\image\image.h
 .\objects\wifi_page.o: ..\app\app.h
+.\objects\wifi_page.o: ..\app\weather.h
+.\objects\wifi_page.o: C:\STM32\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\wifi_page.o: ..\mdk\user_config.h

@@ -8,5 +8,9 @@
 .\objects\main_page.o: ..\app\font\font.h
 .\objects\main_page.o: ..\app\image\image.h
 .\objects\main_page.o: ..\app\app.h
+.\objects\main_page.o: ..\app\weather.h
+.\objects\main_page.o: C:\STM32\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\main_page.o: ..\app\page\page.h
 .\objects\main_page.o: ..\mdk\user_config.h
+.\objects\main_page.o: ..\driver\esp_at\esp_at.h
+.\objects\main_page.o: ..\driver\aht20\aht20.h

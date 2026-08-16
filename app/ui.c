@@ -53,7 +53,7 @@ static void ui_func(void *param)
 {
     ui_message_t msg;
     
-    st7789_init();
+    st7789_init();  //上电以后写一些寄存器来初始化
     
     while (1)
     {
@@ -101,7 +101,7 @@ void ui_fill_color(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint
     msg.fill_color.height = height;
     msg.fill_color.color = color;
     
-    xQueueSend(ui_queue, &msg, portMAX_DELAY);
+    xQueueSend(ui_queue, &msg, portMAX_DELAY);   //任何人都可以调用fill_color这些函数来往UI队列里写数据而且是串行化执行
 }
 
 void ui_write_string(uint16_t x, uint16_t y, const char *str, uint16_t color, uint16_t bg_color, const font_t *font)

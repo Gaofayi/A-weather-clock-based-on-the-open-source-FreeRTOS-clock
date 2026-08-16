@@ -27,11 +27,11 @@
 #define BL_PORT     GPIOE
 #define BL_PIN      GPIO_Pin_5
 
-static SemaphoreHandle_t write_gram_semaphore;
+static SemaphoreHandle_t write_gram_semaphore; //写屏幕信号量
 
-static void st7789_init_display(void);
+static void st7789_init_display(void);   //ST7789初始化上电
 
-static void st7789_io_init(void)
+static void st7789_io_init(void)     //配置外设引脚
 {
     GPIO_InitTypeDef GPIO_InitStruct;
     GPIO_StructInit(&GPIO_InitStruct);
@@ -97,7 +97,7 @@ static void st7789_dma_init(void)
     DMA_Init(DMA1_Stream4, &DMA_InitStruct);
 }
 
-static void st7789_int_init(void)
+static void st7789_int_init(void)   //中断初始化
 {
     NVIC_InitTypeDef NVIC_InitStructure;
     NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream4_IRQn;
@@ -110,7 +110,7 @@ static void st7789_int_init(void)
 
 void st7789_init(void)
 {
-    write_gram_semaphore = xSemaphoreCreateBinary();
+    write_gram_semaphore = xSemaphoreCreateBinary();   //创建一个二进制信号量用来实现互斥操作
     configASSERT(write_gram_semaphore);
     
     st7789_spi_init();
@@ -162,7 +162,7 @@ static void st7789_write_gram(uint8_t data[], uint32_t length, bool singlecolor)
         DMA1_Stream4->NDTR = chunk_size;
 
         DMA_Cmd(DMA1_Stream4, ENABLE);
-        xSemaphoreTake(write_gram_semaphore, portMAX_DELAY);
+        xSemaphoreTake(write_gram_semaphore, portMAX_DELAY); //设置要传输的数据完毕后等待信号量（DMA中断里会释放的）
         
         if (!singlecolor)
             data += chunk_size * 2;
@@ -223,24 +223,24 @@ static bool in_screen_range(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
         return false;
 
     return true;
-}
+}  //判断是否在屏幕范围内
 
 static void st7789_set_range_and_prepare_gram(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
 {
     st7789_write_register(0x2A, (uint8_t[]){(x1 >> 8) & 0xff, x1 & 0xff, (x2 >> 8) & 0xff, x2 & 0xff}, 4);
     st7789_write_register(0x2B, (uint8_t[]){(y1 >> 8) & 0xff, y1 & 0xff, (y2 >> 8) & 0xff, y2 & 0xff}, 4);
     st7789_write_register(0x2C, NULL, 0);
-}
+}   //设置填充范围并准备GRAM
 
 void st7789_fill_color(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
 {
     if (!in_screen_range(x1, y1, x2, y2))
-        return;
+        return;  //在屏幕范围内
     
-    st7789_set_range_and_prepare_gram(x1, y1, x2, y2);
+    st7789_set_range_and_prepare_gram(x1, y1, x2, y2);    //设置GRAM
     
     uint32_t pixels = (x2 - x1 + 1) * (y2 - y1 + 1);
-    st7789_write_gram((uint8_t *)&color, pixels * 2, true);
+    st7789_write_gram((uint8_t *)&color, pixels * 2, true);     //用DMA传输
 }
 
 static void st7789_draw_font(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *model, uint16_t color, uint16_t bg_color)
@@ -262,8 +262,8 @@ static void st7789_draw_font(uint16_t x, uint16_t y, uint16_t width, uint16_t he
 	}
     
     st7789_set_range_and_prepare_gram(x, y, x + width - 1, y + height - 1);
-    st7789_write_gram(buff, pbuf - buff, false);
-}
+    st7789_write_gram(buff, pbuf - buff, false);    
+}   //绘制图像（其实和用C语言语法打印*画图也是一样的）
 
 static const uint8_t *ascii_get_model(const char ch, const font_t *font)
 {
@@ -379,14 +379,14 @@ void st7789_draw_image(uint16_t x, uint16_t y, const image_t *image)
     st7789_write_gram((uint8_t *)image->data, image->width * image->height * 2, false);
 }
 
-void DMA1_Stream4_IRQHandler(void)
+void DMA1_Stream4_IRQHandler(void)   //DMA中断处理函数
 {
     if (DMA_GetITStatus(DMA1_Stream4, DMA_IT_TCIF4) == SET)
     {
-        BaseType_t pxHigherPriorityTaskWoken;
-        xSemaphoreGiveFromISR(write_gram_semaphore, &pxHigherPriorityTaskWoken);
+        BaseType_t pxHigherPriorityTaskWoken;  //标记一下有高优先任务唤醒了
+        xSemaphoreGiveFromISR(write_gram_semaphore, &pxHigherPriorityTaskWoken);    //释放信号量
         portYIELD_FROM_ISR(pxHigherPriorityTaskWoken);
         
-        DMA_ClearITPendingBit(DMA1_Stream4, DMA_IT_TCIF4);
+        DMA_ClearITPendingBit(DMA1_Stream4, DMA_IT_TCIF4);    //清除标志位
     }
 }

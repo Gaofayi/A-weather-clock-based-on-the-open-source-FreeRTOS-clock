@@ -7,6 +7,9 @@
 #include "app.h"
 #include "page.h"
 #include "user_config.h"
+#include "esp_at.h"
+#include "aht20.h"
+#include "weather.h"
 
 static const uint16_t color_bg_time = mkcolor(248, 248, 248);
 static const uint16_t color_bg_inner = mkcolor(136, 217, 234);
@@ -42,7 +45,30 @@ void main_page_display(void)
         main_page_redraw_outdoor_temperature(999.9f);
         main_page_redraw_outdoor_weather_icon(-1);
     } while (0);
-}
+	
+	// 新增：强制刷新所有动态数据（使用缓存） 
+    // 1. RTC 时间
+    rtc_date_time_t now;
+    rtc_get_time(&now);
+    main_page_redraw_time(&now);
+    main_page_redraw_date(&now);
+    
+    // 2. WiFi SSID
+    esp_wifi_info_t wifi_info;
+    if (esp_at_get_wifi_info(&wifi_info) && wifi_info.connected) {
+        main_page_redraw_wifi_ssid(wifi_info.ssid);
+    } else {
+        main_page_redraw_wifi_ssid("wifi lost");
+    }
+    
+    // 3. 温湿度 + 室外天气（直接使用全局缓存）
+    main_page_redraw_inner_temperature(g_last_temperature);
+    main_page_redraw_inner_humidity(g_last_humidity);
+    main_page_redraw_outdoor_temperature(g_last_weather.temperature);
+    main_page_redraw_outdoor_weather_icon(g_last_weather.weather_code);
+	
+}  
+
 
 void main_page_redraw_wifi_ssid(const char *ssid)
 {
@@ -88,6 +114,10 @@ void main_page_redraw_inner_humidity(float humidity)
         snprintf(str, sizeof(str), "%2.0f", humidity);
     ui_write_string(25, 239, str, mkcolor(0, 0, 0), color_bg_inner, &font64_maple_extrabold);
 }
+
+
+
+
 
 void main_page_redraw_outdoor_city(const char *city)
 {

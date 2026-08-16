@@ -23,5 +23,8 @@ extern const image_t icon_yueliang;
 extern const image_t icon_zhongxue;
 extern const image_t icon_zhongyu;
 extern const image_t icon_na;
-
+extern const image_t img_part1;
+extern const image_t img_part2;
+extern const image_t img_part3;
+extern const image_t img_part4;
 #endif /* __IMAGE_H__ */
