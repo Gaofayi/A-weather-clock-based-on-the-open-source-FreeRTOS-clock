@@ -184,11 +184,13 @@ typedef enum {
 | 系统信息页 | WiFi SSID/RSSI、系统运行时长、FreeRTOS 任务栈剩余 |
 | 全屏图片页 | 240x320 RGB565 全屏图片渲染 |
 
-> 📷 充效果截图
-> <img width="3072" height="4096" alt="a614757fc1b3bc4ca75730910b31be43" src="https://github.com/user-attachments/assets/a95d7096-4fb9-4d08-9696-0d6365f70082" />
-> ![Uploading 227413634ae037b364751bd384fb553b.jpg…]()
+> 📷 效果截图
+> <img width="2666" height="3649" alt="2f899a084ec2f89a926bc03b3557049d" src="https://github.com/user-attachments/assets/5c2cc4ff-cfa8-427d-afee-a72f04f6759e" />
 
-> ![Uploading 227413634ae037b364751bd384fb553b.jpg…]()
+> <img width="3072" height="4096" alt="227413634ae037b364751bd384fb553b" src="https://github.com/user-attachments/assets/03dbb584-7184-4264-8003-be70ba32f43c" />
+
+> <img width="3072" height="4096" alt="a614757fc1b3bc4ca75730910b31be43" src="https://github.com/user-attachments/assets/a95d7096-4fb9-4d08-9696-0d6365f70082" />
+
 > 
 
 
