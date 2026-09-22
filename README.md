@@ -194,6 +194,7 @@ typedef enum {
 > 
 
 [![点击观看演示视频]
+【基于开源FreeRTOS的多页面天气时钟-哔哩哔哩】 https://b23.tv/h6nKxDG
 
 ---
 
