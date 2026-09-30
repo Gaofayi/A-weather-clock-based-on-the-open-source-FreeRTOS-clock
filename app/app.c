@@ -5,6 +5,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "timers.h"
+#include "queue.h"
 #include "workqueue.h"
 #include "rtc.h"
 #include "aht20.h"
@@ -34,6 +35,39 @@
                                      MLOOP_EVT_WIFI_UPDATE | \
                                      MLOOP_EVT_INNER_UPDATE | \
                                      MLOOP_EVT_OUTDOOR_UPDATE)
+/* ==================== æ–¹æ¡ˆä¸€ï¼šAHT20 ç‹¬ç«‹ä»»åŠ¡ï¼ˆA/B å¯åˆ‡æ¢ï¼‰ ====================
+ * ENABLE_SEPARATE_SENSOR_TASK
+ *   0 = åŸæ–¹æ¡ˆï¼šAHT20 é‡‡é›†èµ°å…±äº«å·¥ä½œé˜Ÿåˆ—ï¼Œä¸ HTTP / WiFi / SNTP ä¸²è¡Œ
+ *   1 = æ–°æ–¹æ¡ˆï¼šAHT20 é‡‡é›†ç”±ç‹¬ç«‹ä»»åŠ¡ + ç‹¬ç«‹é˜Ÿåˆ—å¤„ç†ï¼Œä¸å†è¢«ç½‘ç»œè¯·æ±‚é˜»å¡
+ * ä¸¤ç§æ¨¡å¼éƒ½ä¼šæ‰“å° [PERF] ç»Ÿè®¡è¡Œï¼Œç”¨äºå¯¹æ¯”"å®šæ—¶å™¨æŠ•é€’ -> å®é™…æ‰§è¡Œ"çš„å»¶è¿Ÿã€‚
+ */
+#define ENABLE_SEPARATE_SENSOR_TASK     1
+
+/* æ¯é‡‡é›†å¤šå°‘æ¬¡æ‰“å°ä¸€è¡Œæ€§èƒ½ç»Ÿè®¡ */
+#define PERF_PRINT_EVERY_N              10
+
+#if ENABLE_SEPARATE_SENSOR_TASK
+typedef struct
+{
+    TickType_t post_tick;   /* å®šæ—¶å™¨å›è°ƒçš„æŠ•é€’æ—¶åˆ» */
+    uint32_t   seq;         /* é‡‡é›†åºå· */
+} sensor_msg_t;
+
+static QueueHandle_t sensor_queue;
+static uint32_t perf_sensor_run_count = 0;
+static uint32_t perf_sensor_lat_sum   = 0;
+static uint32_t perf_sensor_lat_max   = 0;
+static uint32_t perf_sensor_cost_sum  = 0;
+static uint32_t perf_sensor_cost_max  = 0;
+static uint32_t perf_sensor_drop      = 0;
+#else
+static volatile TickType_t perf_inner_post_tick = 0;
+static uint32_t perf_wq_run_count = 0;
+static uint32_t perf_wq_lat_sum   = 0;
+static uint32_t perf_wq_lat_max   = 0;
+static uint32_t perf_wq_cost_sum  = 0;
+static uint32_t perf_wq_cost_max  = 0;
+#endif
 
 
 
@@ -41,36 +75,36 @@ extern void key_gpio_init(void);
 extern uint8_t key_is_pressed(void);
 extern void sysinfo_page_display(void);
 extern void image_page_display(void);
-// ¶¨Òå±äÁ¿£¨ÕâÀï·ÖÅäÁËÊµ¼ÊµÄÄÚ´æ¿Õ¼ä£©
+// å®šä¹‰å˜é‡
 float g_last_temperature = 0.0f;
 float g_last_humidity = 0.0f;
-weather_info_t g_last_weather = { 0 };   // ³õÊ¼»¯ÎªÈ« 0
+weather_info_t g_last_weather = { 0 };   // åˆå§‹åŒ–ä¸ºå…¨ 0
 
 
-// °´¼üÉ¨ÃèÈÎÎñ
+// æŒ‰é”®æ‰«æä»»åŠ¡
 static void key_scan_task(void *pvParameters)
 {
-    uint8_t last_key_state = 1;      // ÉÏÒ»´Î°´¼ü×´Ì¬£¨1=ËÉ¿ª£¬0=°´ÏÂ£©
+    uint8_t last_key_state = 1;      // ä¸Šä¸€æ¬¡æŒ‰é”®çŠ¶æ€ï¼ˆ1=æ¾å¼€ï¼Œ0=æŒ‰ä¸‹ï¼‰
     uint8_t current_key_state;
     
-    (void)pvParameters;  // Ïû³ıÎ´Ê¹ÓÃ²ÎÊı¾¯¸æ
+    (void)pvParameters;  // æ¶ˆé™¤æœªä½¿ç”¨å‚æ•°è­¦å‘Š
     
     while (1)
     {
-        // Ã¿ 50ms É¨ÃèÒ»´Î
+        // æ¯ 50ms æ‰«æä¸€æ¬¡
         vTaskDelay(pdMS_TO_TICKS(50));
         
-        // 1. ¶ÁÈ¡µ±Ç°°´¼ü×´Ì¬£¨0=°´ÏÂ£¬1=ËÉ¿ª£©
+        // 1. è¯»å–å½“å‰æŒ‰é”®çŠ¶æ€ï¼ˆ0=æŒ‰ä¸‹ï¼Œ1=æ¾å¼€ï¼‰
         current_key_state = key_is_pressed() ? 0 : 1;
         
-        // 2. ¼ì²âÏÂ½µÑØ£¨°´ÏÂÊÂ¼ş£©£ºÉÏ´Î=1£¬Õâ´Î=0
+        // 2. æ£€æµ‹ä¸‹é™æ²¿ï¼ˆæŒ‰ä¸‹äº‹ä»¶ï¼‰ï¼šä¸Šæ¬¡=1ï¼Œè¿™æ¬¡=0
         if (last_key_state == 1 && current_key_state == 0)
         {
-            // 3. Ïû¶¶£ºÔÙ¶ÁÒ»´ÎÈ·ÈÏ
+            // 3. æ¶ˆæŠ–ï¼šå†è¯»ä¸€æ¬¡ç¡®è®¤
             vTaskDelay(pdMS_TO_TICKS(20));
-            if (key_is_pressed())  // È·ÈÏÈ·Êµ°´ÏÂÁË
+            if (key_is_pressed())  // ç¡®è®¤ç¡®å®æŒ‰ä¸‹äº†
             {
-                // 4. Ö´ĞĞÒ³ÃæÇĞ»»
+                // 4. æ‰§è¡Œé¡µé¢åˆ‡æ¢
                 switch (g_current_page)
                 {
                     case PAGE_MAIN:
@@ -96,10 +130,10 @@ static void key_scan_task(void *pvParameters)
             }
         }
         
-        // 5. ¸üĞÂÉÏÒ»´Î×´Ì¬
+        // 5. æ›´æ–°ä¸Šä¸€æ¬¡çŠ¶æ€
         last_key_state = current_key_state;
     }
-}   //g
+}   
 
 static TimerHandle_t time_sync_timer;
 static TimerHandle_t wifi_update_timer;
@@ -145,10 +179,10 @@ err:
     xTimerChangePeriod(time_sync_timer, pdMS_TO_TICKS(restart_sync_delay), 0);
 }
 
-static void wifi_update(void)
+static void  wifi_update(void)
 {
 	 if (g_current_page != PAGE_MAIN) {
-        return; // ²»ÊÇÖ÷½çÃæ¾Í²»Ë¢ĞÂÊ±¼ä
+        return; // ä¸æ˜¯ä¸»ç•Œé¢å°±ä¸åˆ·æ–°æ—¶é—´
     }
     static esp_wifi_info_t last_info = { 0 };
 
@@ -188,7 +222,7 @@ static void wifi_update(void)
 static void time_update(void)
 {
 	 if (g_current_page != PAGE_MAIN) {
-        return; // ²»ÊÇÖ÷½çÃæ¾Í²»Ë¢ĞÂÊ±¼ä
+        return; // ä¸æ˜¯ä¸»ç•Œé¢å°±ä¸åˆ·æ–°æ—¶é—´
     }
     static rtc_date_time_t last_date = { 0 };
     
@@ -214,7 +248,7 @@ static void inner_update(void)
 {
 	
 	 if (g_current_page != PAGE_MAIN) {
-        return; // ²»ÊÇÖ÷½çÃæ¾Í²»Ë¢ĞÂÊ±¼ä
+        return; // ä¸æ˜¯ä¸»ç•Œé¢å°±ä¸åˆ·æ–°æ—¶é—´
     }
     static float last_temperature, last_humidity;
     
@@ -224,7 +258,7 @@ static void inner_update(void)
         return;
     } */
 	
-    // ´øÖØÊÔµÄ²âÁ¿´¥·¢£¨×î¶à³¢ÊÔ 200ms£©
+    // å¸¦é‡è¯•çš„æµ‹é‡è§¦å‘ï¼ˆæœ€å¤šå°è¯• 200msï¼‰
 bool measured = false;
 for (int retry = 0; retry < 20; retry++) {
     if (aht20_start_measurement()) {
@@ -254,14 +288,14 @@ if (!measured) {
         return;
     }
     
-	// ========== ?? ¾ÍÔÚÕâÀï²åÈë£¨¼ÓÔÚÕâÀï×îºÃ£© ?? ==========
-    // Ó¦ÓÃÈí¼şÆ«ÒÆ²¹³¥£¨½â¾ö PCB ÈÈ¸ÉÈÅµ¼ÖÂµÄÆ«¸ßÎÊÌâ£©
-    temperature += AHT20_TEMP_OFFSET;   // ¼ÙÈçºêÊÇ -4.5f£¬ÕâÀï¾ÍÊÇ¼õ 4.5 ¶È
+	
+    // åº”ç”¨è½¯ä»¶åç§»è¡¥å¿ï¼ˆè§£å†³ PCB çƒ­å¹²æ‰°å¯¼è‡´çš„åé«˜é—®é¢˜ï¼‰
+    temperature += AHT20_TEMP_OFFSET;   
     
-    // ±£ÏÕÏŞ·ù£¨·ÀÖ¹²¹³¥ºóÒç³öÏÔÊ¾Òì³££©
+    // ï¼ˆé˜²æ­¢è¡¥å¿åæº¢å‡ºæ˜¾ç¤ºå¼‚å¸¸ï¼‰
     if (temperature < -40.0f) temperature = -40.0f;
     if (temperature > 85.0f) temperature = 85.0f;
-    // ========== ?? ²åÈë½áÊø ?? ==========
+ 
 	
     if (temperature == last_temperature && humidity == last_humidity)
     {
@@ -274,15 +308,73 @@ if (!measured) {
     printf("[AHT20] Temperature: %.1f, Humidity: %.1f\n", temperature, humidity);
 	  g_last_temperature = temperature;
     g_last_humidity = humidity;
-    main_page_redraw_inner_temperature(temperature);
+    main_page_redraw_inner_temperature(temperature);     //å±€éƒ¨åˆ·æ–°å±å¹•
     main_page_redraw_inner_humidity(humidity);
 }
+
+#if ENABLE_SEPARATE_SENSOR_TASK
+/* ==================== æ–°æ–¹æ¡ˆï¼šAHT20 ç‹¬ç«‹ä»»åŠ¡ ==================== */
+static void sensor_task(void *param)
+{
+    sensor_msg_t msg;
+
+    (void)param;
+
+    for (;;)
+    {
+        if (xQueueReceive(sensor_queue, &msg, portMAX_DELAY) != pdPASS)
+        {
+            continue;
+        }
+
+        TickType_t start = xTaskGetTickCount();
+        uint32_t latency_ms = (uint32_t)((start - msg.post_tick) * portTICK_PERIOD_MS);
+
+        inner_update();     /* å¤ç”¨åŸæœ‰é‡‡é›† + å±€éƒ¨åˆ·æ–°é€»è¾‘ */
+
+        uint32_t cost_ms = (uint32_t)((xTaskGetTickCount() - start) * portTICK_PERIOD_MS);
+
+        perf_sensor_run_count++;
+        perf_sensor_lat_sum += latency_ms;
+        if (latency_ms > perf_sensor_lat_max) perf_sensor_lat_max = latency_ms;
+        perf_sensor_cost_sum += cost_ms;
+        if (cost_ms > perf_sensor_cost_max) perf_sensor_cost_max = cost_ms;
+
+        if ((perf_sensor_run_count % PERF_PRINT_EVERY_N) == 0)
+        {
+            printf("[PERF][sensor] inner_update: cur=%ums max=%ums avg=%ums | cost cur=%ums max=%ums avg=%ums | n=%u drop=%u\r\n",
+                   (unsigned)latency_ms, (unsigned)perf_sensor_lat_max,
+                   (unsigned)(perf_sensor_lat_sum / perf_sensor_run_count),
+                   (unsigned)cost_ms, (unsigned)perf_sensor_cost_max,
+                   (unsigned)(perf_sensor_cost_sum / perf_sensor_run_count),
+                   (unsigned)perf_sensor_run_count, (unsigned)perf_sensor_drop);
+        }
+    }
+}
+
+/* å®šæ—¶å™¨å›è°ƒï¼šåªè®°å½•æ—¶åˆ»å¹¶æŠ•é€’ï¼Œç»ä¸é˜»å¡ */
+static void sensor_timer_cb(TimerHandle_t timer)
+{
+    sensor_msg_t msg;
+
+    (void)timer;
+
+    msg.post_tick = xTaskGetTickCount();
+    msg.seq = perf_sensor_run_count + perf_sensor_drop + 1;
+
+    /* å®šæ—¶å™¨å›è°ƒä¸­ç¦æ­¢é˜»å¡ï¼š0 è¶…æ—¶ï¼Œé˜Ÿåˆ—æ»¡åˆ™ä¸¢å¼ƒå¹¶è®¡æ•° */
+    if (xQueueSend(sensor_queue, &msg, 0) != pdPASS)
+    {
+        perf_sensor_drop++;
+    }
+}
+#endif /* ENABLE_SEPARATE_SENSOR_TASK */
 
 static void outdoor_update(void)
 {
 	
 	 if (g_current_page != PAGE_MAIN) {
-        return; // ²»ÊÇÖ÷½çÃæ¾Í²»Ë¢ĞÂÊ±¼ä
+        return; // ä¸æ˜¯ä¸»ç•Œé¢å°±ä¸åˆ·æ–°æ—¶é—´
     }
     static weather_info_t last_weather = { 0 };
     
@@ -313,19 +405,57 @@ static void outdoor_update(void)
     main_page_redraw_outdoor_weather_icon(weather.weather_code);
 }
 
-typedef void (*app_job_t)(void);   //¶¨Òåapp_job_tÀàĞÍµÄº¯Êı
+typedef void (*app_job_t)(void);   //å®šä¹‰app_job_tç±»å‹çš„å‡½æ•°
 
 static void app_work(void *param)
 {
     app_job_t job = (app_job_t)param;
-    job(); //Ö´ĞĞ¸Ãº¯Êı
+
+#if !ENABLE_SEPARATE_SENSOR_TASK
+    if (job == inner_update)   /* åªç»Ÿè®¡ AHT20 é‡‡é›†ï¼Œä¿è¯ä¸ [PERF][sensor] å£å¾„ä¸€è‡´ */
+    {
+        TickType_t start = xTaskGetTickCount();
+        uint32_t latency_ms = (uint32_t)((start - perf_inner_post_tick) * portTICK_PERIOD_MS);
+
+        job();
+
+        uint32_t cost_ms = (uint32_t)((xTaskGetTickCount() - start) * portTICK_PERIOD_MS);
+
+        perf_wq_run_count++;
+        perf_wq_lat_sum += latency_ms;
+        if (latency_ms > perf_wq_lat_max) perf_wq_lat_max = latency_ms;
+        perf_wq_cost_sum += cost_ms;
+        if (cost_ms > perf_wq_cost_max) perf_wq_cost_max = cost_ms;
+
+        if ((perf_wq_run_count % PERF_PRINT_EVERY_N) == 0)
+        {
+            printf("[PERF][workqueue] inner_update: cur=%ums max=%ums avg=%ums | cost cur=%ums max=%ums avg=%ums | n=%u\r\n",
+                   (unsigned)latency_ms, (unsigned)perf_wq_lat_max,
+                   (unsigned)(perf_wq_lat_sum / perf_wq_run_count),
+                   (unsigned)cost_ms, (unsigned)perf_wq_cost_max,
+                   (unsigned)(perf_wq_cost_sum / perf_wq_run_count),
+                   (unsigned)perf_wq_run_count);
+        }
+        return;
+    }
+#endif
+
+    job(); //æ‰§è¡Œè¯¥å‡½æ•°
 }
 
-static void work_timer_cb(TimerHandle_t timer)  //FreeRTOSÒªÇó»Øµ÷ÊÇĞÎÊ½ÉÏvoid£¨TimerHandle_t£©
+static void work_timer_cb(TimerHandle_t timer)  //FreeRTOSè¦æ±‚å›è°ƒæ˜¯å½¢å¼ä¸Švoidï¼ˆTimerHandle_tï¼‰
 {
     app_job_t job = (app_job_t)pvTimerGetTimerID(timer);
+
+#if !ENABLE_SEPARATE_SENSOR_TASK
+    if (job == inner_update)
+    {
+        perf_inner_post_tick = xTaskGetTickCount();   /* åŸæ–¹æ¡ˆï¼šè®°å½•æŠ•é€’æ—¶åˆ»ï¼Œç”¨äºä¸ [PERF][sensor] å¯¹æ¯” */
+    }
+#endif
+
     workqueue_run(app_work, job);
-}       //¶¨Ê±Æ÷µ½Ê±¼äºóÖ´ĞĞ´Ë»Øµ÷£¬´Ë»Øµ÷Ö»ÊÇ°ÑÒªÖ´ĞĞµÄºÄÊ±º¯Êı¶ªµ½¹¤×÷¶ÓÁĞÀïÈ¥£¬µÍÓÅÏÈ¼¶ÈÎÎñºóÌ¨Ö´ĞĞ
+}       //å®šæ—¶å™¨åˆ°æ—¶é—´åæ‰§è¡Œæ­¤å›è°ƒï¼Œæ­¤å›è°ƒåªæ˜¯æŠŠè¦æ‰§è¡Œçš„è€—æ—¶å‡½æ•°ä¸¢åˆ°å·¥ä½œé˜Ÿåˆ—é‡Œå»ï¼Œä½ä¼˜å…ˆçº§ä»»åŠ¡åå°æ‰§è¡Œ
 
 static void app_timer_cb(TimerHandle_t timer)
 {
@@ -335,19 +465,41 @@ static void app_timer_cb(TimerHandle_t timer)
 
 void app_init(void)
 {
+#if ENABLE_SEPARATE_SENSOR_TASK
+    /* æ–°æ–¹æ¡ˆï¼šä¸º AHT20 é‡‡é›†åˆ›å»ºç‹¬ç«‹é˜Ÿåˆ—ä¸ä»»åŠ¡ */
+    sensor_queue = xQueueCreate(8, sizeof(sensor_msg_t));
+    configASSERT(sensor_queue);
+    if (xTaskCreate(sensor_task, "sensor", 512, NULL, 6, NULL) != pdPASS)
+    {
+        printf("[PERF] create sensor task failed: heap not enough?\r\n");
+        configASSERT(0);
+    }
+    printf("\r\n[PERF] mode = SEPARATE sensor task (queue=8, prio=6, stack=512 words)\r\n");
+#else
+    printf("\r\n[PERF] mode = SHARED workqueue (original)\r\n");
+#endif
+
     time_update_timer = xTimerCreate("time update", pdMS_TO_TICKS(TIME_UPDATE_INTERVAL), pdTRUE, time_update, app_timer_cb);
-	//SNTPÍøÂç¶ÔÊ±
+	//SNTPç½‘ç»œå¯¹æ—¶
     time_sync_timer = xTimerCreate("time sync", pdMS_TO_TICKS(200), pdFALSE, time_sync, work_timer_cb);
-	//¶ÁÈ¡RTC£¬Ë¢ĞÂÊ±¼ä¡¢ÏÔÊ¾ÈÕÆÚ
+	//è¯»å–RTCï¼Œåˆ·æ–°æ—¶é—´ã€æ˜¾ç¤ºæ—¥æœŸ
     wifi_update_timer = xTimerCreate("wifi update", pdMS_TO_TICKS(WIFI_UPDATE_INTERVAL), pdTRUE, wifi_update, work_timer_cb);
-	//¼ì²éWIFIÁ¬½Ó×´Ì¬
+	//æ£€æŸ¥WIFIè¿æ¥çŠ¶æ€
+#if ENABLE_SEPARATE_SENSOR_TASK
+    inner_update_timer = xTimerCreate("inner update", pdMS_TO_TICKS(INNER_UPDATE_INTERVAL), pdTRUE, NULL, sensor_timer_cb);
+#else
     inner_update_timer = xTimerCreate("inner upadte", pdMS_TO_TICKS(INNER_UPDATE_INTERVAL), pdTRUE, inner_update, work_timer_cb);
-	//¸üĞÂÊÒÄÚ»·¾³
+#endif
+	//æ›´æ–°å®¤å†…ç¯å¢ƒ
     outdoor_update_timer = xTimerCreate("outdoor update", pdMS_TO_TICKS(OUTDOOR_UPDATE_INTERVAL), pdTRUE, outdoor_update, work_timer_cb);
-	//¸üĞÂÊÒÍâ»·¾³
+	//æ›´æ–°å®¤å¤–ç¯å¢ƒ
     workqueue_run(app_work, time_sync);
     workqueue_run(app_work, wifi_update);
+#if ENABLE_SEPARATE_SENSOR_TASK
+    sensor_timer_cb(NULL);      /* ä¸Šç”µå…ˆç«‹åˆ»é‡‡é›†ä¸€æ¬¡ */
+#else
     workqueue_run(app_work, inner_update);
+#endif
     workqueue_run(app_work, outdoor_update);
     
     xTimerStart(time_update_timer, 0);
