@@ -6,40 +6,33 @@
 #include "page.h"
 #include "wifi.h"
 #include "user_config.h"
-void wifi_init(void)
+bool wifi_init(void)
 {
     if (!esp_at_init())
     {
         printf("[AT] init failed\n");
-        goto err;
+        return false;
     }
     printf("[AT] inited\n");
     
     if (!esp_at_wifi_init())
     {
         printf("[WIFI] init failed\n");
-        goto err;
+        return false;
     }
     printf("[WIFI] inited\n");
     
     if (!esp_at_sntp_init())
     {
         printf("[SNTP] init failed\n");
-        goto err;
+        return false;
     }
     printf("[SNTP] inited\n");
-    
-    return;
-    
-err:
-    error_page_display("wireless init failed");
-    while (1)
-    {
-        ;
-    }
+
+    return true;
 }
 
-void wifi_wait_connect(void)
+bool wifi_wait_connect(void)
 {
     printf("[WIFI] connecting\n");
     
@@ -54,14 +47,10 @@ void wifi_wait_connect(void)
             printf("[WIFI] Connected\n");
             printf("[WIFI] SSID: %s, BSSID: %s, Channel: %d, RSSI: %d\n",
                 wifi.ssid, wifi.bssid, wifi.channel, wifi.rssi);
-            return;
+            return true;
         }
     }
-    
-    printf("[WIFI] Connection Timeout\n");
-    error_page_display("wireless connect failed");
-    while (1)
-    {
-        ;
-    }
+
+    printf("[WIFI] Connection Timeout -> offline mode (device keeps running)\n");
+    return false;
 }

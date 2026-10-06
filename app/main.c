@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include "workqueue.h"
@@ -13,17 +14,27 @@ extern void aht20_self_test(void);
 
 static void main_init(void *param)
 {
-    board_init();    //³õÊ¼»¯RTC¡¢AHT20µÈ
-    ui_init();   //´´½¨UI¶ÓÁĞ²¢ÍùUI¶ÓÁĞÀïĞ´Êı¾İ£¬¸ù¾İ²»Í¬Êı¾İ¾ö¶¨»­×Ö·û´®»¹ÊÇÍ¼Ïñ»¹ÊÇÌî³äÑÕÉ«£¨ÓÅÏÈ¼¶8£©
+    board_init();    //åˆå§‹åŒ–RTCã€AHT20ç­‰
+    ui_init();   //åˆ›å»ºUIé˜Ÿåˆ—å¹¶å¾€UIé˜Ÿåˆ—é‡Œå†™æ•°æ®ï¼Œæ ¹æ®ä¸åŒæ•°æ®å†³å®šç”»å­—ç¬¦ä¸²è¿˜æ˜¯å›¾åƒè¿˜æ˜¯å¡«å……é¢œè‰²ï¼ˆä¼˜å…ˆçº§8ï¼‰
     
 	aht20_self_test();
 	
-    welcome_page_display();   //½çÃæUIµÄÉè¼Æ¶¼ÊÇ¿ÉÒÔÓÃFigmaÈí¼ş¶¨Î»Ã¿¸öÏñËØµÄ¾ßÌåÎ»ÖÃµÄ
+    welcome_page_display();   //ç•Œé¢UIçš„è®¾è®¡éƒ½æ˜¯å¯ä»¥ç”¨Figmaè½¯ä»¶å®šä½æ¯ä¸ªåƒç´ çš„å…·ä½“ä½ç½®çš„
     
-    wifi_init();
-    wifi_page_display();
-    wifi_wait_connect();
     
+    if (wifi_init())
+    {
+        wifi_page_display();
+        if (!wifi_wait_connect())
+        {
+            printf("[WIFI] offline mode: RTC and sensor keep working\n");
+        }
+    }
+    else
+    {
+        printf("[WIFI] init failed -> offline mode (skip wifi page)\n");
+    }
+
     main_page_display();
     app_init();
     
@@ -32,12 +43,12 @@ static void main_init(void *param)
 
 int main(void)
 {
-    board_lowlevel_init();    //Ê±ÖÓ¡¢ÍâÉèµÈ³õÊ¼»¯,ÒÔ¼°Ò»Ğ©¹³×Óº¯Êı
-    workqueue_init();    //´´½¨¹¤×÷¶ÓÁĞ£¨´ò¹¤ÈËÈÎÎñ£©
+    board_lowlevel_init();    //æ—¶é’Ÿã€å¤–è®¾ç­‰åˆå§‹åŒ–,ä»¥åŠä¸€äº›é’©å­å‡½æ•°
+    workqueue_init();    //åˆ›å»ºå·¥ä½œé˜Ÿåˆ—å¹¶åˆ›å»ºæ‰“å·¥äººä»»åŠ¡ï¼ˆä¼˜å…ˆçº§5ï¼‰
     
-    xTaskCreate(main_init, "init", 1024, NULL, 9, NULL);  //µÚÒ»´ÎÖ´ĞĞËùÓĞ³õÊ¼»¯ºó×ÔÉ±
+    xTaskCreate(main_init, "init", 1024, NULL, 9, NULL);  //ç¬¬ä¸€æ¬¡æ‰§è¡Œæ‰€æœ‰åˆå§‹åŒ–åè‡ªæ€
     
-    vTaskStartScheduler();  //Æô¶¯µ÷¶ÈÆ÷£¬ÈÃFreeRTOS½Ó¹Ü
+    vTaskStartScheduler();  //å¯åŠ¨è°ƒåº¦å™¨ï¼Œè®©FreeRTOSæ¥ç®¡
     
     while (1)
     {
