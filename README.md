@@ -43,64 +43,93 @@
 
 ```mermaid
 graph LR
-    A[心知天气 API] -->|HTTP GET| B(ESP32-C3 WiFi 模组)
-    B -->|USART2 透传| C{STM32F407 主控}
-    C -->|SPI2 + DMA| D[ST7789 LCD 显示]
-    C -->|I2C2| E[AHT20 温湿度传感器]
-    C -->|I2C1| F[片内 RTC 时钟]
-    G[物理按键] -->|GPIO 轮询| C
-    C -->|AT 指令| B
-    C -->|状态机控制| B
+    API["心知天气 API（HTTPS）"] -->|HTTP GET| ESP["ESP32-C3（ESP-AT 固件）"]
+    ESP -->|"USART2 115200 · AT 指令与响应"| MCU["STM32F407ZGT6 + FreeRTOS"]
+    MCU -->|"SPI2 + DMA1 Stream4"| LCD["ST7789 240×320 LCD"]
+    MCU -->|"I2C2 @100kHz"| AHT["AHT20 温湿度传感器"]
+    MCU -->|"LSE 32.768kHz"| RTC["STM32 片内 RTC"]
+    KEY["物理按键 PB0"] -->|GPIO 轮询| MCU
 ```
 
-### FreeRTOS 多任务调度与同步机制流程图
+### FreeRTOS 任务与同步机制
 
 ```mermaid
 graph TD
-    Start[系统上电] --> LowLevel[board_lowlevel_init: 时钟/FPU/SysTick]
-    LowLevel --> WQ[workqueue_init: 创建工作队列任务]
-    WQ --> CreateInit[xTaskCreate: 创建 main_init 任务]
-    CreateInit --> Sched[vTaskStartScheduler: 启动调度器]
+    BOOT["系统上电"] --> LL["board_lowlevel_init<br/>时钟 / FPU / SysTick"]
+    LL --> WQ["workqueue_init<br/>创建工作队列 + workqueue 任务（优先级 5）"]
+    WQ --> IT["xTaskCreate main_init（优先级 9）"]
+    IT --> SCHED["vTaskStartScheduler"]
 
-    subgraph InitPhase [初始化阶段 main_init 优先级 9]
-        I1[board_init: 硬件外设初始化]
-        I1 --> I2[ui_init: 创建 UI 任务与消息队列]
-        I2 --> I3[welcome_page_display: 欢迎界面]
-        I3 --> I4[wifi_init: ESP-AT 初始化]
-        I4 --> I5[wifi_wait_connect: 10秒轮询等待 WiFi 连接]
-        I5 --> I6[main_page_display: 主界面绘制]
-        I6 --> I7[app_init: 创建软件定时器]
-        I7 --> I8[vTaskDelete: 删除自身]
+    subgraph INIT["初始化阶段 · init 任务（优先级 9）"]
+        I1["board_init<br/>定时器 / 串口 / 按键 / RTC / AHT20"] --> I2["ui_init<br/>UI 队列 + UI 任务（优先级 8）"]
+        I2 --> I3["aht20_self_test<br/>I2C 扫描 + 状态位自检"]
+        I3 --> I4["welcome_page_display"]
+        I4 --> I5{"wifi_init / wifi_wait_connect 是否成功"}
+        I5 -->|成功| I6["wifi_page_display + 联网"]
+        I5 -->|失败| I7["离线降级：打印日志，继续运行"]
+        I6 --> I8["main_page_display"]
+        I7 --> I8
+        I8 --> I9["app_init<br/>创建 5 个软件定时器 + sensor 任务"]
+        I9 --> I10["vTaskDelete 删除自身"]
     end
 
-    subgraph Runtime [运行时任务]
-        TimerTask[定时器服务任务 优先级9] -->|定时器到期| TimerCb
-        TimerCb{回调类型判断}
-        TimerCb -->|app_timer_cb| DirectExec[直接执行: time_update 读RTC]
-        TimerCb -->|work_timer_cb| Enqueue[投递函数指针至工作队列]
-        
-        Enqueue --> WQueue[工作队列任务 优先级5]
-        WQueue --> ExecJob[串行执行: wifi_update / inner_update / outdoor_update / time_sync]
-        
-        ExecJob -->|UI 绘制命令| UIQueue[UI 消息队列]
-        DirectExec -->|UI 绘制命令| UIQueue
-        
-        UIQueue --> UITask[UI 任务 优先级8]
-        UITask --> Draw[ST7789 绘图: 填色/写字/贴图]
-        Draw --> DMA[DMA 搬运像素数据]
-        DMA -->|传输完成中断| SemGive[xSemaphoreGiveFromISR 释放信号量]
-        SemGive -->|唤醒| Draw
-        
-        KeyTask[按键扫描任务 优先级3]
-        KeyTask -->|修改页面状态| PageSwitch[页面切换: 主界面/系统信息页/图片页]
-        PageSwitch -->|全屏重绘命令| UIQueue
+    subgraph RUN["运行阶段"]
+        TS["定时器服务任务（优先级 9）"] --> CB{"定时器回调类型"}
+        CB -->|app_timer_cb| D1["直接执行<br/>time_update 读 RTC + 局部刷新"]
+        CB -->|work_timer_cb| Q1["投递函数指针到工作队列"]
+        CB -->|sensor_timer_cb| Q2["记录投递时刻并投递到 sensor 队列"]
+
+        Q1 --> WT["workqueue 任务（优先级 5）"]
+        WT --> J2["outdoor_update<br/>AT+HTTPCLIENT 取天气 + JSON 解析"]
+        WT --> J3["wifi_update / time_sync<br/>WiFi 状态查询 / SNTP 校时"]
+
+        Q2 --> ST["sensor 任务（优先级 6）"]
+        ST --> J4["inner_update<br/>AHT20 采集 + 局部刷新"]
+
+        D1 --> UQ["UI 消息队列（深度 16）"]
+        J2 --> UQ
+        J3 --> UQ
+        J4 --> UQ
+
+        UQ --> UT["UI 任务（优先级 8）"]
+        UT --> DR["ST7789 绘制<br/>填色 / 写字 / 贴图"]
+        DR --> DMA["DMA 搬运像素数据"]
+        DMA -->|传输完成中断| SG["xSemaphoreGiveFromISR 释放信号量"]
+        SG -->|唤醒写入方| DR
+
+        KT["key_scan 任务（优先级 3）"] -->|"50ms 轮询 + 20ms 二次消抖"| PS["页面状态切换"]
+        PS --> UQ
+
+        ATS["AT 应答信号量"] -.->|"中断按行匹配 OK / ERROR"| WT
+        PERF["性能埋点 [PERF]<br/>投递→执行延迟 · 采集耗时"] -.-> ST
     end
 
-    Sched --> InitPhase
-    InitPhase -->|完成后| Runtime
+    SCHED --> INIT
+    INIT --> RUN
 ```
 
-### 定时器驱动业务更新周期表
+### 任务划分
+
+| 任务 | 优先级 | 栈（words） | 职责 |
+|------|:---:|:---:|------|
+| init（main_init） | 9 | 1024 | 外设、UI、网络初始化，完成后自删除 |
+| 定时器服务任务 | 9 | 由 FreeRTOS 配置 | 运行 5 个软件定时器的回调（`configTIMER_TASK_PRIORITY = configMAX_PRIORITIES - 1`） |
+| ui（ui_func） | 8 | 1024 | 独占 ST7789，串行执行填色 / 写字 / 贴图三类绘制动作 |
+| sensor（sensor_task） | 6 | 512 | AHT20 采集（3 秒周期），与网络请求解耦 |
+| workqueue（work_func） | 5 | 1024 | 单消费者串行执行网络与业务任务 |
+| key_scan | 3 | 512 | 50ms 轮询 + 20ms 二次消抖，切换页面状态 |
+
+> 调度配置：`configUSE_PREEMPTION = 1`（抢占式）、`configUSE_TIME_SLICING = 1`（同级时间片轮转）、`configTICK_RATE_HZ = 1000`、`configMAX_PRIORITIES = 10`。
+
+### 软件定时器
+
+| 定时器 | 周期 | 回调 | 业务 | 执行位置 |
+|------|------|------|------|------|
+| time_update | 1 秒 | app_timer_cb | 读 RTC、比较数据变化、局部刷新时间与日期 | 定时器服务任务内直接执行 |
+| inner_update | 3 秒 | sensor_timer_cb | AHT20 采集 + 局部刷新温湿度 | sensor 任务 |
+| wifi_update | 5 秒 | work_timer_cb | 查询 WiFi 连接状态与 RSSI，变化时刷新界面 | workqueue 任务 |
+| outdoor_update | 1 分钟 | work_timer_cb | `AT+HTTPCLIENT` 获取天气 JSON 并刷新 | workqueue 任务 |
+| time_sync | 1 小时（失败时 1 秒） | work_timer_cb | SNTP 校时写入 RTC，失败自动缩短重试周期 | workqueue 任务 |
 
 ```mermaid
 gantt
@@ -110,12 +139,39 @@ gantt
     section 高速
     RTC时间刷新 (1秒)    :active, t1, 0, 1s
     section 中速
-    WiFi状态查询 (5秒)   :t2, 0, 5s
     温湿度采集 (3秒)     :t3, 0, 3s
+    WiFi状态查询 (5秒)   :t2, 0, 5s
     section 低速
     天气HTTP请求 (1分钟) :t4, 0, 60s
-    SNTP时间同步 (动态)  :crit, t5, 0, 3600s
+    SNTP时间同步 (1小时) :crit, t5, 0, 3600s
 ```
+
+### 队列与同步机制
+
+| 机制 | 深度 | 用途 |
+|------|:---:|------|
+| work queue | 16 | 投递「函数指针 + 参数」，由单消费者任务串行执行网络与业务 |
+| sensor queue | 8 | 仅传递投递时刻，用于采集调度与延迟统计 |
+| UI queue | 16 | 绘制命令（动作枚举 + 联合体三态）；字符串经 `pvPortMalloc` 拷贝、渲染后 `vPortFree` |
+| 定时器命令队列 | 32 | FreeRTOS 内部使用（`configTIMER_QUEUE_LENGTH`） |
+| DMA 完成信号量 | 二值 | DMA 传输完成中断中 `xSemaphoreGiveFromISR` 唤醒写入方 |
+| AT 应答信号量 | 二值 | 命令发送后等待应答，中断按行匹配后唤醒等待任务 |
+
+### 一次数据更新的完整链路（以天气刷新为例）
+
+1. `outdoor_update_timer`（1 分钟）到期，`work_timer_cb` 把函数指针投递到工作队列；
+2. workqueue 任务取出任务，拼出 `AT+HTTPCLIENT` 命令经 DMA 发送，并等待 AT 应答信号量；
+3. ESP32-C3 内部完成 DNS 解析、TCP 连接、TLS 握手与 HTTP 请求，回传 JSON 响应体；
+4. `weather.c` 用 `strstr` 定位字段、`sscanf` 提取城市 / 天气 / 温度 / 天气代码；
+5. 解析结果写入全局变量，并向 UI 队列投递「写字 + 贴图」消息；
+6. UI 任务执行绘制，像素数据经 SPI2 + DMA 分块搬运，传输完成中断释放信号量；
+7. 若当前不在主界面，刷新函数在入口处直接返回（页面可见性校验），避免污染非活动页面。
+
+### 离线降级行为
+
+网络初始化或连接失败时不再进入死循环，而是打印日志并继续运行：设备保持 RTC 走时、AHT20 采集与显示、按键切换页面等本地功能，主界面 WiFi 区域显示 `wifi lost`，天气区域保留上一次数据。
+
+> 后续规划：为 WiFi 增加状态机与指数退避重连，把「离线」从终态变为可恢复状态。
 
 ---
 
@@ -123,9 +179,9 @@ gantt
 
 ### 1. 工作队列（Work Queue）—— 中断下半部设计
 
-所有软件定时器的业务回调（WiFi 查询、传感器读取、HTTP 请求）均通过 `work_timer_cb` 将函数指针投递至工作队列，由独立的 `workqueue_task`（优先级 5）串行执行。
+网络与慢周期业务（WiFi 状态查询、天气 HTTP 请求、SNTP 校时）通过 `work_timer_cb` 将函数指针投递至工作队列，由独立的 `workqueue` 任务（优先级 5）串行执行；AHT20 采集（3 秒周期）则由 `sensor_timer_cb` 投递到独立的 sensor 队列，由 sensor 任务（优先级 6）执行，避免被秒级的 HTTP 请求阻塞。
 
-**设计目的**：FreeRTOS 定时器回调在定时器服务任务（优先级 9）中执行，该任务不应执行阻塞操作。通过工作队列将耗时任务延迟至低优先级任务上下文，确保定时器服务任务零阻塞。
+**设计目的**：FreeRTOS 定时器回调在定时器服务任务（优先级 9）中执行，该任务不应执行阻塞操作。通过工作队列与独立传感器任务把耗时业务延迟到任务上下文，既保证定时器服务任务零阻塞，也让快周期采集不被慢请求拖累。
 
 ### 2. DMA + 二值信号量并行刷屏
 
@@ -147,6 +203,14 @@ typedef enum {
 ### 4. SNTP 动态重试机制
 
 `time_sync` 函数在 SNTP 同步失败时调用 `xTimerChangePeriod` 将定时器重置为 1 秒后重试；同步成功后恢复为 1 小时周期。
+
+### 5. 队头阻塞优化与性能埋点
+
+SNTP、WiFi 状态、天气 HTTP 三个业务共用同一个单消费者工作队列，天气请求最长阻塞 5 秒，会推迟 3 秒周期的传感器采集，属于典型的队头阻塞。
+
+为此将 AHT20 采集拆分为独立的 sensor 任务（优先级 6、栈 512 words）与专用队列（深度 8）：定时器回调仅记录投递时刻并以 0 超时投递，队列满时计数丢弃而不阻塞；两种模式通过编译开关 `ENABLE_SEPARATE_SENSOR_TASK` 切换，便于对比。同时加入性能埋点，统计「定时器投递 → 任务实际执行」的延迟与单次采集耗时，每 10 次输出一行 `[PERF]` 日志。
+
+> AT 指令层目前仍是「发送后阻塞等待应答」的实现，进一步优化方向是将 AT 交互改造为事件驱动的状态机，从根本上消除阻塞等待。
 
 ---
 
