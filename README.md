@@ -28,7 +28,7 @@
 | 主控 | STM32F407ZGT6（ARM Cortex-M4 @168MHz） |
 | RTOS | FreeRTOS（任务调度、消息队列、信号量、软件定时器） |
 | WiFi 模块 | ESP32-C3（乐鑫 ESP-AT 固件，USART2 通信） |
-| 温湿度传感器 | AHT20（I2C1 接口） |
+| 温湿度传感器 | AHT20（I2C2，PB10/PB11，7 位地址 0x38） |
 | 显示屏幕 | ST7789 240x320 LCD（SPI2 + DMA） |
 | 实时时钟 | STM32 片内 RTC（外接 32.768KHz 晶振） |
 | 通信协议 | USART（AT 指令）、I2C、SPI |
