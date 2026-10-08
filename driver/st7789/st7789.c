@@ -10,13 +10,13 @@
 #include "font.h"
 #include "image.h"
 
-// CLK ¡ª¡ª PB13
-// MOSI ¡ª¡ª PC3
-// MISO ¡ª¡ª PC2
-// CS ¡ª¡ª PE2
-// RESET ¡ª¡ª PE3
-// DC ¡ª¡ª PE4
-// BL ¡ª¡ª PE5
+// CLK â€”â€” PB13
+// MOSI â€”â€” PC3
+// MISO â€”â€” PC2
+// CS â€”â€” PE2
+// RESET â€”â€” PE3
+// DC â€”â€” PE4
+// BL â€”â€” PE5
 
 #define CS_PORT     GPIOE
 #define CS_PIN      GPIO_Pin_2
@@ -27,11 +27,11 @@
 #define BL_PORT     GPIOE
 #define BL_PIN      GPIO_Pin_5
 
-static SemaphoreHandle_t write_gram_semaphore; //Ğ´ÆÁÄ»ĞÅºÅÁ¿
+static SemaphoreHandle_t write_gram_semaphore; //å†™å±å¹•ä¿¡å·é‡
 
-static void st7789_init_display(void);   //ST7789³õÊ¼»¯ÉÏµç
+static void st7789_init_display(void);   //ST7789åˆå§‹åŒ–ä¸Šç”µ
 
-static void st7789_io_init(void)     //ÅäÖÃÍâÉèÒı½Å
+static void st7789_io_init(void)     //é…ç½®å¤–è®¾å¼•è„š
 {
     GPIO_InitTypeDef GPIO_InitStruct;
     GPIO_StructInit(&GPIO_InitStruct);
@@ -97,7 +97,7 @@ static void st7789_dma_init(void)
     DMA_Init(DMA1_Stream4, &DMA_InitStruct);
 }
 
-static void st7789_int_init(void)   //ÖĞ¶Ï³õÊ¼»¯
+static void st7789_int_init(void)   //ä¸­æ–­åˆå§‹åŒ–
 {
     NVIC_InitTypeDef NVIC_InitStructure;
     NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream4_IRQn;
@@ -110,7 +110,7 @@ static void st7789_int_init(void)   //ÖĞ¶Ï³õÊ¼»¯
 
 void st7789_init(void)
 {
-    write_gram_semaphore = xSemaphoreCreateBinary();   //´´½¨Ò»¸ö¶ş½øÖÆĞÅºÅÁ¿ÓÃÀ´ÊµÏÖ»¥³â²Ù×÷
+    write_gram_semaphore = xSemaphoreCreateBinary();   //åˆ›å»ºä¸€ä¸ªäºŒè¿›åˆ¶ä¿¡å·é‡ç”¨æ¥å®ç°äº’æ–¥æ“ä½œ
     configASSERT(write_gram_semaphore);
     
     st7789_spi_init();
@@ -162,7 +162,7 @@ static void st7789_write_gram(uint8_t data[], uint32_t length, bool singlecolor)
         DMA1_Stream4->NDTR = chunk_size;
 
         DMA_Cmd(DMA1_Stream4, ENABLE);
-        xSemaphoreTake(write_gram_semaphore, portMAX_DELAY); //ÉèÖÃÒª´«ÊäµÄÊı¾İÍê±ÏºóµÈ´ıĞÅºÅÁ¿£¨DMAÖĞ¶ÏÀï»áÊÍ·ÅµÄ£©
+        xSemaphoreTake(write_gram_semaphore, portMAX_DELAY); //è®¾ç½®è¦ä¼ è¾“çš„æ•°æ®å®Œæ¯•åç­‰å¾…ä¿¡å·é‡ï¼ˆDMAä¸­æ–­é‡Œä¼šé‡Šæ”¾çš„ï¼‰
         
         if (!singlecolor)
             data += chunk_size * 2;
@@ -223,24 +223,24 @@ static bool in_screen_range(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
         return false;
 
     return true;
-}  //ÅĞ¶ÏÊÇ·ñÔÚÆÁÄ»·¶Î§ÄÚ
+}  //åˆ¤æ–­æ˜¯å¦åœ¨å±å¹•èŒƒå›´å†…
 
 static void st7789_set_range_and_prepare_gram(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
 {
     st7789_write_register(0x2A, (uint8_t[]){(x1 >> 8) & 0xff, x1 & 0xff, (x2 >> 8) & 0xff, x2 & 0xff}, 4);
     st7789_write_register(0x2B, (uint8_t[]){(y1 >> 8) & 0xff, y1 & 0xff, (y2 >> 8) & 0xff, y2 & 0xff}, 4);
     st7789_write_register(0x2C, NULL, 0);
-}   //ÉèÖÃÌî³ä·¶Î§²¢×¼±¸GRAM
+}   //è®¾ç½®å¡«å……èŒƒå›´å¹¶å‡†å¤‡GRAM
 
 void st7789_fill_color(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
 {
     if (!in_screen_range(x1, y1, x2, y2))
-        return;  //ÔÚÆÁÄ»·¶Î§ÄÚ
+        return;  //åœ¨å±å¹•èŒƒå›´å†…
     
-    st7789_set_range_and_prepare_gram(x1, y1, x2, y2);    //ÉèÖÃGRAM
+    st7789_set_range_and_prepare_gram(x1, y1, x2, y2);    //è®¾ç½®GRAM
     
     uint32_t pixels = (x2 - x1 + 1) * (y2 - y1 + 1);
-    st7789_write_gram((uint8_t *)&color, pixels * 2, true);     //ÓÃDMA´«Êä
+    st7789_write_gram((uint8_t *)&color, pixels * 2, true);     //ç”¨DMAä¼ è¾“
 }
 
 static void st7789_draw_font(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *model, uint16_t color, uint16_t bg_color)
@@ -263,7 +263,7 @@ static void st7789_draw_font(uint16_t x, uint16_t y, uint16_t width, uint16_t he
     
     st7789_set_range_and_prepare_gram(x, y, x + width - 1, y + height - 1);
     st7789_write_gram(buff, pbuf - buff, false);    
-}   //»æÖÆÍ¼Ïñ£¨ÆäÊµºÍÓÃCÓïÑÔÓï·¨´òÓ¡*»­Í¼Ò²ÊÇÒ»ÑùµÄ£©
+}   //ç»˜åˆ¶å›¾åƒï¼ˆå…¶å®å’Œç”¨Cè¯­è¨€è¯­æ³•æ‰“å°*ç”»å›¾ä¹Ÿæ˜¯ä¸€æ ·çš„ï¼‰
 
 static const uint8_t *ascii_get_model(const char ch, const font_t *font)
 {
@@ -379,14 +379,14 @@ void st7789_draw_image(uint16_t x, uint16_t y, const image_t *image)
     st7789_write_gram((uint8_t *)image->data, image->width * image->height * 2, false);
 }
 
-void DMA1_Stream4_IRQHandler(void)   //DMAÖĞ¶Ï´¦Àíº¯Êı
+void DMA1_Stream4_IRQHandler(void)   //DMAä¸­æ–­å¤„ç†å‡½æ•°
 {
     if (DMA_GetITStatus(DMA1_Stream4, DMA_IT_TCIF4) == SET)
     {
-        BaseType_t pxHigherPriorityTaskWoken;  //±ê¼ÇÒ»ÏÂÓĞ¸ßÓÅÏÈÈÎÎñ»½ĞÑÁË
-        xSemaphoreGiveFromISR(write_gram_semaphore, &pxHigherPriorityTaskWoken);    //ÊÍ·ÅĞÅºÅÁ¿
+        BaseType_t pxHigherPriorityTaskWoken;  //æ ‡è®°ä¸€ä¸‹æœ‰é«˜ä¼˜å…ˆä»»åŠ¡å”¤é†’äº†
+        xSemaphoreGiveFromISR(write_gram_semaphore, &pxHigherPriorityTaskWoken);    //é‡Šæ”¾ä¿¡å·é‡
         portYIELD_FROM_ISR(pxHigherPriorityTaskWoken);
         
-        DMA_ClearITPendingBit(DMA1_Stream4, DMA_IT_TCIF4);    //Çå³ı±êÖ¾Î»
+        DMA_ClearITPendingBit(DMA1_Stream4, DMA_IT_TCIF4);    //æ¸…é™¤æ ‡å¿—ä½
     }
 }

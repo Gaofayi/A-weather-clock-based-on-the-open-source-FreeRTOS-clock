@@ -79,20 +79,20 @@ bool aht20_init(void)
     
     vTaskDelay(pdMS_TO_TICKS(40));
     
-    // ¡ï¡ï¡ï ³¢ÊÔ·¢ËÍ³õÊ¼»¯ÃüÁî£¬×î¶àÖØÊÔ 3 ´Î ¡ï¡ï¡ï
-    uint8_t status;
+    //  å°è¯•å‘é€åˆå§‹åŒ–å‘½ä»¤ï¼Œæœ€å¤šé‡è¯• 3 æ¬¡ 
+    uint8_t status;   //çŠ¶æ€ä½
     for (int retry = 0; retry < 3; retry++) {
         if (!aht20_write((uint8_t[]){0xBE, 0x08, 0x00}, 3)) {
             printf("[AHT20] Init command write failed (retry %d)\n", retry);
             continue;
         }
         
-        // ¡ï¡ï¡ï µÈ´ıĞ£×¼Íê³É£¬×î¶à 300ms£¨Ô­ÏÈÊÇ 100ms£© ¡ï¡ï¡ï
+        //  ç­‰å¾…æ ¡å‡†å®Œæˆï¼Œæœ€å¤š 300msï¼ˆåŸå…ˆæ˜¯ 100msï¼‰ 
         for (uint32_t t = 0; t < 60; t++) {
             vTaskDelay(pdMS_TO_TICKS(5));
             if (!aht20_read_status(&status))
                 continue;
-            // ¼ì²é ready£¨Bit3£©ºÍ cal£¨Bit0£©ÊÇ·ñ¶¼Îª 1
+            // æ£€æŸ¥ readyï¼ˆBit3ï¼‰å’Œ calï¼ˆBit0ï¼‰æ˜¯å¦éƒ½ä¸º 1
             if ((status & 0x08) && (status & 0x01)) {
                 printf("[AHT20] Init+Calibration done, status=0x%02X\n", status);
                 return true;
@@ -136,7 +136,7 @@ static bool aht20_write(uint8_t data[], uint32_t length)
 
 static bool aht20_read(uint8_t data[], uint32_t length)
 {
-    // ¡ï¡ï¡ï ÏÈÊ¹ÄÜ ACK£¨Ä¬ÈÏ»Ø¸´ ACK£© ¡ï¡ï¡ï
+    //  å…ˆä½¿èƒ½ ACKï¼ˆé»˜è®¤å›å¤ ACKï¼‰ 
     I2C_AcknowledgeConfig(I2C2, ENABLE);
     
     I2C_GenerateSTART(I2C2, ENABLE);
@@ -146,7 +146,7 @@ static bool aht20_read(uint8_t data[], uint32_t length)
     
     for (uint32_t i = 0; i < length; i++)
     {
-        // ¡ï¡ï¡ï ¹Ø¼üĞŞ¸´£ºÔÚ½ÓÊÕ×îºóÒ»¸ö×Ö½ÚÖ®Ç°£¬ÏÈ¹Ø±Õ ACK ¡ï¡ï¡ï
+        // â˜…â˜…â˜… ï¼šåœ¨æ¥æ”¶æœ€åä¸€ä¸ªå­—èŠ‚ä¹‹å‰ï¼Œå…ˆå…³é—­ ACK â˜…â˜…â˜…
         if (i == length - 1) {
             I2C_AcknowledgeConfig(I2C2, DISABLE);
         }
@@ -157,7 +157,7 @@ static bool aht20_read(uint8_t data[], uint32_t length)
     
     I2C_GenerateSTOP(I2C2, ENABLE);
     
-    // ¡ï¡ï¡ï ÖØĞÂÊ¹ÄÜ ACK£¬ÎªÏÂÒ»´ÎÍ¨ĞÅ×¼±¸ ¡ï¡ï¡ï
+    // â˜…â˜…â˜… é‡æ–°ä½¿èƒ½ ACKï¼Œä¸ºä¸‹ä¸€æ¬¡é€šä¿¡å‡†å¤‡ â˜…â˜…â˜…
     I2C_AcknowledgeConfig(I2C2, ENABLE);
     
     return true;
@@ -242,10 +242,10 @@ void aht20_i2c_scan(void)
     uint8_t found_count = 0;
     for (uint8_t addr_7bit = 1; addr_7bit < 127; addr_7bit++)
     {
-        // 7Î»µØÖ·×óÒÆ1Î»£¬±ä³É8Î»Ğ´µØÖ·
+        // 7ä½åœ°å€å·¦ç§»1ä½ï¼Œå˜æˆ8ä½å†™åœ°å€
         uint8_t dev_addr = addr_7bit << 1;
         
-        // ²úÉú START ĞÅºÅ
+        // äº§ç”Ÿ START ä¿¡å·
         I2C_GenerateSTART(I2C2, ENABLE);
         uint32_t timeout = 1000;
         while (!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_MODE_SELECT) && timeout > 0) {
@@ -257,10 +257,10 @@ void aht20_i2c_scan(void)
             return;
         }
         
-        // ·¢ËÍ 7 Î»µØÖ· + Ğ´Î»
+        // å‘é€ 7 ä½åœ°å€ + å†™ä½
         I2C_Send7bitAddress(I2C2, dev_addr, I2C_Direction_Transmitter);
         
-        // µÈ´ıµØÖ·±»Ó¦´ğ£¨Èç¹û´«¸ĞÆ÷´æÔÚ£¬»áÀ­µÍ SDA Ó¦´ğ£©
+        // ç­‰å¾…åœ°å€è¢«åº”ç­”ï¼ˆå¦‚æœä¼ æ„Ÿå™¨å­˜åœ¨ï¼Œä¼šæ‹‰ä½ SDA åº”ç­”ï¼‰
         timeout = 1000;
         while (!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED) && timeout > 0) {
             tim_delay_us(10);
@@ -268,15 +268,15 @@ void aht20_i2c_scan(void)
         }
         
         if (timeout > 0) {
-            // ÓĞÉè±¸Ó¦´ğ
+            // æœ‰è®¾å¤‡åº”ç­”
             printf("[I2C] Found device at 7-bit address: 0x%02X (8-bit: 0x%02X)\r\n", 
                    addr_7bit, dev_addr);
             found_count++;
         }
         
-        // ·¢ËÍ STOP ĞÅºÅ
+        // å‘é€ STOP ä¿¡å·
         I2C_GenerateSTOP(I2C2, ENABLE);
-        // ¼ÓÒ»µãÑÓÊ±£¬±ÜÃâ×ÜÏß³åÍ»
+        // åŠ ä¸€ç‚¹å»¶æ—¶ï¼Œé¿å…æ€»çº¿å†²çª
         tim_delay_us(100);
     }
     
@@ -294,8 +294,8 @@ void aht20_i2c_scan(void)
 }
 
 // ============================================================
-// 2. ¶ÁÈ¡ AHT20 ×´Ì¬¼Ä´æÆ÷£¨0x71£©
-//    ·µ»Ø 8 Î»×´Ì¬Öµ£¬Ö±½Ó´òÓ¡
+// 2. è¯»å– AHT20 çŠ¶æ€å¯„å­˜å™¨ï¼ˆ0x71ï¼‰
+//    è¿”å› 8 ä½çŠ¶æ€å€¼ï¼Œç›´æ¥æ‰“å°
 // ============================================================
 bool aht20_print_status(void)
 {
@@ -304,13 +304,13 @@ bool aht20_print_status(void)
     
     printf("[AHT20] Reading status register...\r\n");
     
-    // ·¢ËÍÃüÁî 0x71£¨¶ÁÈ¡×´Ì¬£©
+    // å‘é€å‘½ä»¤ 0x71ï¼ˆè¯»å–çŠ¶æ€ï¼‰
     if (!aht20_write(&cmd, 1)) {
         printf("[AHT20] Failed to send status command (0x71)\r\n");
         return false;
     }
     
-    // ¶ÁÈ¡ 1 ¸ö×Ö½Ú
+    // è¯»å– 1 ä¸ªå­—èŠ‚
     if (!aht20_read(&status, 1)) {
         printf("[AHT20] Failed to read status byte\r\n");
         return false;
@@ -332,14 +332,14 @@ bool aht20_print_status(void)
 }
 
 // ============================================================
-// 3. ÍêÕû²âÊÔÁ÷³Ì£ºÉ¨Ãè ¡ú ¶Á×´Ì¬ ¡ú ´¥·¢²âÁ¿ ¡ú ¶ÁÈ¡Êı¾İ
-//    ÔÚ main Àïµ÷ÓÃ `aht20_self_test()` ¼´¿É
+// 3. å®Œæ•´æµ‹è¯•æµç¨‹ï¼šæ‰«æ â†’ è¯»çŠ¶æ€ â†’ è§¦å‘æµ‹é‡ â†’ è¯»å–æ•°æ®
+//    åœ¨ main é‡Œè°ƒç”¨ `aht20_self_test()` å³å¯
 // ============================================================
 void aht20_self_test(void)
 {
     printf("\r\n========== AHT20 Self Test Start ==========\r\n\r\n");
     
-	// ¡ï¡ï¡ï Ç¿ÖÆÖØĞÂ³õÊ¼»¯ ¡ï¡ï¡ï
+	// â˜…â˜…â˜… å¼ºåˆ¶é‡æ–°åˆå§‹åŒ– â˜…â˜…â˜…
     printf("[AHT20] Forcing re-init...\n");
     if (aht20_init()) {
         printf("[AHT20] Re-init success!\n");
@@ -347,16 +347,16 @@ void aht20_self_test(void)
         printf("[AHT20] Re-init failed!\n");
     }
 	
-    // ----- µÚÒ»²½£ºI2C É¨Ãè -----
+    // ----- ç¬¬ä¸€æ­¥ï¼šI2C æ‰«æï¼ˆæ€»çº¿å±‚ä¸Šç¡®ä¿AHT20è®¾å¤‡åœ¨çº¿ï¼‰ -----
     aht20_i2c_scan();
     
-    // ----- µÚ¶ş²½£º¶Á×´Ì¬¼Ä´æÆ÷£¨¿´´«¸ĞÆ÷ÊÇ·ñ³õÊ¼»¯£©-----
+    // ----- ç¬¬äºŒæ­¥ï¼šè¯»çŠ¶æ€å¯„å­˜å™¨ï¼ˆçŠ¶æ€å±‚ä¸Šç­‰å¾…ä¼ æ„Ÿå™¨å°±ç»ªï¼šåˆ†åˆ«è¯»busyä½ã€readyä½ã€calä½ï¼‰-----
     if (!aht20_print_status()) {
         printf("[ERROR] Cannot read AHT20 status. Check wiring/power.\r\n");
         return;
     }
     
-    // ----- µÚÈı²½£ºÈç¹ûÎ´³õÊ¼»¯£¬·¢ËÍ³õÊ¼»¯ÃüÁî -----
+    // ----- ç¬¬ä¸‰æ­¥ï¼šå¦‚æœæœªåˆå§‹åŒ–ï¼Œå‘é€åˆå§‹åŒ–å‘½ä»¤ -----
     uint8_t status;
     aht20_read_status(&status);
     if ((status & 0x08) == 0) {
@@ -365,7 +365,7 @@ void aht20_self_test(void)
             printf("[ERROR] Init command failed!\r\n");
             return;
         }
-        // µÈ´ı³õÊ¼»¯Íê³É£¨×î¶à100ms£©
+        // ç­‰å¾…åˆå§‹åŒ–å®Œæˆï¼ˆä¸‰æ¬¡æ¯æ¬¡100mså¢åŠ å®¹é”™ï¼‰
         for (int i = 0; i < 20; i++) {
             vTaskDelay(pdMS_TO_TICKS(5));
             aht20_read_status(&status);
@@ -376,14 +376,14 @@ void aht20_self_test(void)
         }
     }
     
-    // ----- µÚËÄ²½£º´¥·¢Ò»´Î²âÁ¿ -----
+    // ----- ç¬¬å››æ­¥ï¼šè§¦å‘ä¸€æ¬¡æµ‹é‡ -----
     printf("[AHT20] Triggering measurement (0xAC, 0x33, 0x00)...\r\n");
     if (!aht20_write((uint8_t[]){0xAC, 0x33, 0x00}, 3)) {
         printf("[ERROR] Measurement trigger failed!\r\n");
         return;
     }
     
-    // µÈ´ı²âÁ¿Íê³É£¨×î¶à200ms£©
+    // ç­‰å¾…æµ‹é‡å®Œæˆï¼ˆæœ€å¤š200msï¼‰
     printf("[AHT20] Waiting for measurement...\r\n");
     bool busy = true;
     for (int i = 0; i < 40; i++) {
@@ -400,7 +400,7 @@ void aht20_self_test(void)
         return;
     }
     
-    // ----- µÚÎå²½£º¶ÁÈ¡ 6 ×Ö½ÚÊı¾İ -----
+    // ----- ç¬¬äº”æ­¥ï¼šè¯»å– 6 å­—èŠ‚æ•°æ®ï¼ˆ1å­—èŠ‚çŠ¶æ€ï¼Œ5å­—èŠ‚æ•°æ®ï¼‰ -----
     uint8_t data[6];
     printf("[AHT20] Reading 6 bytes of data...\r\n");
     if (!aht20_read(data, 6)) {
@@ -411,7 +411,7 @@ void aht20_self_test(void)
     printf("[AHT20] Raw data: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X\r\n",
            data[0], data[1], data[2], data[3], data[4], data[5]);
     
-    // ----- µÚÁù²½£º½âÎöÎÂÊª¶È -----
+    // ----- ç¬¬å…­æ­¥ï¼šè§£ææ¸©æ¹¿åº¦ -----
     uint32_t raw_humidity = ((uint32_t)data[1] << 12) | 
                             ((uint32_t)data[2] << 4) | 
                             ((uint32_t)(data[3] & 0xF0) >> 4);
@@ -424,7 +424,7 @@ void aht20_self_test(void)
     
     printf("[AHT20] Raw humidity   : 0x%06X (%d)\r\n", raw_humidity, raw_humidity);
     printf("[AHT20] Raw temperature: 0x%06X (%d)\r\n", raw_temperature, raw_temperature);
-    printf("[AHT20] *** Temperature: %.2f ¡ãC\r\n", temperature);
+    printf("[AHT20] *** Temperature: %.2f Â°C\r\n", temperature);
     printf("[AHT20] *** Humidity   : %.2f %%RH\r\n", humidity);
     
     printf("\r\n========== AHT20 Self Test End ==========\r\n");

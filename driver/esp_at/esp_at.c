@@ -26,13 +26,13 @@ typedef struct
 {
     at_ack_t ack;
     const char *string;
-} at_ack_match_t;    //¸Ã½á¹¹ÌåÀïÊÇÒ»¸öÃ¶¾Ù+Êı×é
+} at_ack_match_t;    //è¯¥ç»“æ„ä½“é‡Œæ˜¯ä¸€ä¸ªæšä¸¾+æ•°ç»„
 
-static const at_ack_match_t at_ack_matches[] =   	//½á¹¹ÌåÊı×é
+static const at_ack_match_t at_ack_matches[] =   	//ç»“æ„ä½“æ•°ç»„
 {
     {AT_ACK_OK, "OK\r\n"},
     {AT_ACK_ERROR, "ERROR\r\n"},
-    {AT_ACK_BUSY, "busy p¡­\r\n"},
+    {AT_ACK_BUSY, "busy pâ€¦\r\n"},
     {AT_ACK_READY, "ready\r\n"},
 };
 
@@ -133,7 +133,7 @@ bool esp_at_init(void)
     return true;
 }
 
-static void esp_at_usart_write(const char *data)   //ESPAT´®¿Ú·¢Êı¾İ
+static void esp_at_usart_write(const char *data)   //ESPATä¸²å£å‘æ•°æ®
 {
     uint32_t len = strlen(data);
     

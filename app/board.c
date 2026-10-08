@@ -15,14 +15,15 @@ void board_lowlevel_init(void)
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);    //‰∏≤Âè£1Ë∞ÉËØï‰ø°ÊÅØ
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART6, ENABLE);    //‰∏≤Âè£6‰º†ËæìÊï∞ÊçÆÂà∞‰∏ªÊú∫
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C2, ENABLE);      //AHT20
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);	  //LCD∆¡ƒª
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM6, ENABLE);	  //∂® ±∆˜
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);	  //LCDÂ±èÂπï
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM6, ENABLE);	  //ÂÆöÊó∂Âô®
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, ENABLE);
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);	  //¥Æø⁄¥´ ‰
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2, ENABLE);	  //SPI¥´ ‰
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);	  //‰∏≤Âè£‰º†Ëæì
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2, ENABLE);	  //SPI‰º†Ëæì
     PWR_BackupAccessCmd(ENABLE);
     RCC_LSEConfig(RCC_LSE_ON);
     while(RCC_GetFlagStatus(RCC_FLAG_LSERDY) == RESET);

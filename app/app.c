@@ -35,33 +35,31 @@
                                      MLOOP_EVT_WIFI_UPDATE | \
                                      MLOOP_EVT_INNER_UPDATE | \
                                      MLOOP_EVT_OUTDOOR_UPDATE)
-/* ==================== 方案一：AHT20 独立任务（A/B 可切换） ====================
- * ENABLE_SEPARATE_SENSOR_TASK
- *   0 = 原方案：AHT20 采集走共享工作队列，与 HTTP / WiFi / SNTP 串行
- *   1 = 新方案：AHT20 采集由独立任务 + 独立队列处理，不再被网络请求阻塞
- * 两种模式都会打印 [PERF] 统计行，用于对比"定时器投递 -> 实际执行"的延迟。
- */
+//两种方案可以切换：
+//0 = 原来的方案，AHT20采集丢到工作队列里，和HTTP、WiFi、SNTP排队执行
+//1 = 新方案，AHT20采集单独一个任务加单独的队列，不用再等网络请求
+//两种方案都会打印[PERF]统计行，用来对比"定时器投递->真正执行"的延迟
 #define ENABLE_SEPARATE_SENSOR_TASK     1
 
-/* 每采集多少次打印一行性能统计 */
+//每采集多少次打印一行性能统计
 #define PERF_PRINT_EVERY_N              10
 
 #if ENABLE_SEPARATE_SENSOR_TASK
 typedef struct
 {
-    TickType_t post_tick;   /* 定时器回调的投递时刻 */
-    uint32_t   seq;         /* 采集序号 */
+    TickType_t post_tick;   //定时器投递消息时的时刻，用来算延迟
+    uint32_t   seq;         //采集序号
 } sensor_msg_t;
 
-static QueueHandle_t sensor_queue;
-static uint32_t perf_sensor_run_count = 0;
-static uint32_t perf_sensor_lat_sum   = 0;
-static uint32_t perf_sensor_lat_max   = 0;
-static uint32_t perf_sensor_cost_sum  = 0;
-static uint32_t perf_sensor_cost_max  = 0;
-static uint32_t perf_sensor_drop      = 0;
+static QueueHandle_t sensor_queue;              //传感器队列
+static uint32_t perf_sensor_run_count = 0;      //性能统计：采集了多少次，每十次打印一行
+static uint32_t perf_sensor_lat_sum   = 0;      //传感器任务延迟总时间
+static uint32_t perf_sensor_lat_max   = 0;      //传感器任务延迟最大值
+static uint32_t perf_sensor_cost_sum  = 0;      //传感器任务消耗总时间
+static uint32_t perf_sensor_cost_max  = 0;      //传感器任务消耗时间最大值
+static uint32_t perf_sensor_drop      = 0;      //传感器任务丢包次数
 #else
-static volatile TickType_t perf_inner_post_tick = 0;
+static volatile TickType_t perf_inner_post_tick = 0;    //另外一个方案同样记录，用于性能对比
 static uint32_t perf_wq_run_count = 0;
 static uint32_t perf_wq_lat_sum   = 0;
 static uint32_t perf_wq_lat_max   = 0;
@@ -313,7 +311,7 @@ if (!measured) {
 }
 
 #if ENABLE_SEPARATE_SENSOR_TASK
-/* ==================== 新方案：AHT20 独立任务 ==================== */
+//新方案：AHT20单独开一个任务来采集
 static void sensor_task(void *param)
 {
     sensor_msg_t msg;
@@ -322,17 +320,17 @@ static void sensor_task(void *param)
 
     for (;;)
     {
-        if (xQueueReceive(sensor_queue, &msg, portMAX_DELAY) != pdPASS)
+        if (xQueueReceive(sensor_queue, &msg, portMAX_DELAY) != pdPASS) 
         {
             continue;
         }
 
-        TickType_t start = xTaskGetTickCount();
-        uint32_t latency_ms = (uint32_t)((start - msg.post_tick) * portTICK_PERIOD_MS);
+        TickType_t start = xTaskGetTickCount();   //获取执行采集任务时系统当前时间戳（ms）
+        uint32_t latency_ms = (uint32_t)((start - msg.post_tick) * portTICK_PERIOD_MS); //计算采集任务延迟时间
 
-        inner_update();     /* 复用原有采集 + 局部刷新逻辑 */
+        inner_update();     //直接复用原来的采集加上局部刷新代码
 
-        uint32_t cost_ms = (uint32_t)((xTaskGetTickCount() - start) * portTICK_PERIOD_MS);
+        uint32_t cost_ms = (uint32_t)((xTaskGetTickCount() - start) * portTICK_PERIOD_MS);  //计算采集任务消耗时间
 
         perf_sensor_run_count++;
         perf_sensor_lat_sum += latency_ms;
@@ -352,23 +350,24 @@ static void sensor_task(void *param)
     }
 }
 
-/* 定时器回调：只记录时刻并投递，绝不阻塞 */
+//定时器回调里只记录时刻和投递消息，不能阻塞
 static void sensor_timer_cb(TimerHandle_t timer)
 {
     sensor_msg_t msg;
 
     (void)timer;
 
-    msg.post_tick = xTaskGetTickCount();
+    msg.post_tick = xTaskGetTickCount();   //记录投递时刻，但不阻塞
+
     msg.seq = perf_sensor_run_count + perf_sensor_drop + 1;
 
-    /* 定时器回调中禁止阻塞：0 超时，队列满则丢弃并计数 */
+    //这里超时给0，不能阻塞，队列满了就丢掉并计数
     if (xQueueSend(sensor_queue, &msg, 0) != pdPASS)
     {
         perf_sensor_drop++;
     }
 }
-#endif /* ENABLE_SEPARATE_SENSOR_TASK */
+#endif //ENABLE_SEPARATE_SENSOR_TASK
 
 static void outdoor_update(void)
 {
@@ -412,7 +411,7 @@ static void app_work(void *param)
     app_job_t job = (app_job_t)param;
 
 #if !ENABLE_SEPARATE_SENSOR_TASK
-    if (job == inner_update)   /* 只统计 AHT20 采集，保证与 [PERF][sensor] 口径一致 */
+    if (job == inner_update)   //只统计AHT20采集，好和另一个方案的[PERF][sensor]对比
     {
         TickType_t start = xTaskGetTickCount();
         uint32_t latency_ms = (uint32_t)((start - perf_inner_post_tick) * portTICK_PERIOD_MS);
@@ -450,7 +449,7 @@ static void work_timer_cb(TimerHandle_t timer)  //FreeRTOS要求回调是形式�
 #if !ENABLE_SEPARATE_SENSOR_TASK
     if (job == inner_update)
     {
-        perf_inner_post_tick = xTaskGetTickCount();   /* 原方案：记录投递时刻，用于与 [PERF][sensor] 对比 */
+        perf_inner_post_tick = xTaskGetTickCount();   //原方案：记录投递时刻，用来和[PERF][sensor]对比
     }
 #endif
 
@@ -466,7 +465,7 @@ static void app_timer_cb(TimerHandle_t timer)
 void app_init(void)
 {
 #if ENABLE_SEPARATE_SENSOR_TASK
-    /* 新方案：为 AHT20 采集创建独立队列与任务 */
+    //新方案：给AHT20采集单独建一个队列和一个任务
     sensor_queue = xQueueCreate(8, sizeof(sensor_msg_t));
     configASSERT(sensor_queue);
     if (xTaskCreate(sensor_task, "sensor", 512, NULL, 6, NULL) != pdPASS)
@@ -496,7 +495,7 @@ void app_init(void)
     workqueue_run(app_work, time_sync);
     workqueue_run(app_work, wifi_update);
 #if ENABLE_SEPARATE_SENSOR_TASK
-    sensor_timer_cb(NULL);      /* 上电先立刻采集一次 */
+    sensor_timer_cb(NULL);      //上电先立刻采集一次
 #else
     workqueue_run(app_work, inner_update);
 #endif
