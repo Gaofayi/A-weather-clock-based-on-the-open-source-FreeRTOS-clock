@@ -101,7 +101,7 @@ void main_page_redraw_date(rtc_date_time_t *date)
 
 void main_page_redraw_inner_temperature(float temperature)
 {
-    char str[3] = {'-', '-'};
+    char str[6] = {'-', '-'};   //显示温度：留够位置，避免 100 这种数据被截断
     if (temperature > -10.0f && temperature <= 100.0f)
         snprintf(str, sizeof(str), "%2.0f", temperature);
     ui_write_string(30, 192, str, mkcolor(0, 0, 0), color_bg_inner, &font54_maple_semibold);
@@ -109,7 +109,7 @@ void main_page_redraw_inner_temperature(float temperature)
     
 void main_page_redraw_inner_humidity(float humidity)
 {
-    char str[3];
+    char str[6] = {'-', '-'};   //显示湿度：原来没初始化，超出范围时会打印乱码
     if (humidity > 0.0f && humidity <= 99.99f)
         snprintf(str, sizeof(str), "%2.0f", humidity);
     ui_write_string(25, 239, str, mkcolor(0, 0, 0), color_bg_inner, &font64_maple_extrabold);
@@ -128,7 +128,7 @@ void main_page_redraw_outdoor_city(const char *city)
 
 void main_page_redraw_outdoor_temperature(float temperature)
 {
-    char str[3] = {'-', '-'};
+    char str[6] = {'-', '-'};   //显示室外温度：处理方式和室内温度一样
     if (temperature > -10.0f && temperature <= 100.0f)
         snprintf(str, sizeof(str), "%2.0f", temperature);
     ui_write_string(135, 190, str, mkcolor(0, 0, 0), color_bg_outdoor, &font54_maple_bold);
